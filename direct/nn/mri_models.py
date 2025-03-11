@@ -791,6 +791,9 @@ class MRIModelEngine(Engine):
             torch.cuda.empty_cache()
             gc.collect()
             filename = _get_filename_from_batch(data)
+            ############## custom ########
+            data['filename'] = filename
+            ##############################
             if last_filename is None:
                 last_filename = filename  # First iteration last_filename is not set.
             if last_filename != filename:

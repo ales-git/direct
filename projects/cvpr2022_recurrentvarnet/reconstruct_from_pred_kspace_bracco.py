@@ -6,6 +6,7 @@ import nibabel as nib
 
 # Set folder paths
 kspace_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/direct/pred_3d_kspace/'
+original_h5_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/bracco_data_test/h5_adapted/'
 output_png_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_slices/'
 output_nii_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_nifti/'
 output_plots_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_plots/'

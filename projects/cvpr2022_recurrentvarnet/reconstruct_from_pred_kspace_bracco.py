@@ -1,94 +1,103 @@
-import torch
 import os
+import re
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import nibabel as nib
+from collections import defaultdict
 
-# Set folder paths
-kspace_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/direct/pred_3d_kspace/'
-original_h5_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/bracco_data_test/h5_adapted/'
-output_png_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_slices/'
-output_nii_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_nifti/'
-output_plots_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/output_plots/'
+# Paths
+kspace_folder = '/home/giovanni/Desktop/Projects/AI/Projects/direct/direct/pred_3d_kspace_2D/'
+output_base = '/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test_2d/'
+output_png = os.path.join(output_base, 'output_slices')
+output_nii = os.path.join(output_base, 'output_nifti')
+output_plots = os.path.join(output_base, 'output_plots')
+os.makedirs(output_png, exist_ok=True)
+os.makedirs(output_nii, exist_ok=True)
+os.makedirs(output_plots, exist_ok=True)
 
-# Ensure output folders exist
-os.makedirs(output_png_folder, exist_ok=True)
-os.makedirs(output_nii_folder, exist_ok=True)
-os.makedirs(output_plots_folder, exist_ok=True)
+# Normalize helper
+def normalize(img):
+    img = np.abs(img)
+    return (img - np.min(img)) / (np.max(img) - np.min(img) + 1e-8)
 
-# Processing all .pt files in the folder
-for file_name in os.listdir(kspace_folder):
-    if file_name.endswith('.pt'):
-        file_path = os.path.join(kspace_folder, file_name)
-        print(f"Processing: {file_name}")
+# Parse and group by volume name
+volume_dict = defaultdict(list)
+pattern = re.compile(r"(.+)_slice_(\d+)\.pt")
+
+for fname in sorted(os.listdir(kspace_folder)):
+    if not fname.endswith('.pt'):
+        continue
+    match = pattern.match(fname)
+    if match:
+        volname, slice_idx = match.group(1), int(match.group(2))
+        volume_dict[volname].append((slice_idx, fname))
+
+# Process each volume
+for volname, slices in volume_dict.items():
+    print(f"Reconstructing volume: {volname}")
+    slices_sorted = sorted(slices, key=lambda x: x[0])
+    volume_slices = []
+
+    for slice_idx, fname in slices_sorted:
+        fpath = os.path.join(kspace_folder, fname)
+        kspace = torch.load(fpath).cpu()
+
+        # Check shape and convert to complex numpy
+        if kspace.ndim == 4:
+            kspace = kspace.squeeze(0)  # [128, 128, 2]
+        if kspace.shape[-1] != 2:
+            raise ValueError(f"Unexpected last dimension in k-space: {kspace.shape}")
         
-        # Load k-space data
-        kspace = torch.load(file_path)
-        kspace = kspace.squeeze(0)  # Remove coil dimension if necessary
-        kspace_complex = torch.complex(kspace[..., 0], kspace[..., 1])
-        
-        # Apply inverse FFT
-        pixshift, pixshift2 = 12, -26
-        reconstructed_image = np.flip(
-            np.moveaxis(
-                np.roll(np.roll(abs(np.fft.fftshift(np.fft.fftn(kspace_complex.cpu()))), pixshift, 0), pixshift2, 2), 2, 0),
-            axis=0
-        )
-        
-        # Normalize the image
-        images = (reconstructed_image - np.min(reconstructed_image)) / (np.max(reconstructed_image) - np.min(reconstructed_image))
-        
-        # Save slices as PNG
-        slice_folder = os.path.join(output_png_folder, file_name.replace('.pt', ''))
-        os.makedirs(slice_folder, exist_ok=True)
-        
-        for i in range(images.shape[0]):  # Axial slices
-            plt.imsave(os.path.join(slice_folder, f"slice_{i:03d}.png"), images[i, :, :], cmap='gray', vmin=0, vmax=1)
-        
-        # Save as .nii.gz file
-        nii_file_path = os.path.join(output_nii_folder, file_name.replace('.pt', '.nii.gz'))
-        nifti_img = nib.Nifti1Image(reconstructed_image, affine=np.eye(4))
-        nib.save(nifti_img, nii_file_path)
-        
-        # Generate quick visualization plots
-        num_slices = 16
-        start_idx_axial = (images.shape[0] - num_slices) // 2
-        start_idx_coronal = (images.shape[1] - num_slices) // 2
-        start_idx_sagittal = (images.shape[2] - num_slices) // 2
-        plot_folder = os.path.join(output_plots_folder, file_name.replace('.pt', ''))
-        os.makedirs(plot_folder, exist_ok=True)
-        
-        # Axial view
-        fig, axes = plt.subplots(4, 4, figsize=(10, 10))
+        # Construct complex k-space array (real + imag)
+        kspace_complex = kspace[..., 0] + 1j * kspace[..., 1]  # shape [128, 128]
+
+        # Debugging step: Check the shape before FFT
+        print(f"Shape of kspace_complex (slice {slice_idx}): {kspace_complex.shape}")
+
+        # 2D iFFT
+        img = np.fft.ifft2(kspace_complex)
+        img = np.fft.fftshift(img)
+        img_abs = np.abs(img)
+        volume_slices.append(img_abs)
+
+    volume_np = np.stack(volume_slices, axis=0)  # shape [D, H, W]
+    volume_np_norm = normalize(volume_np)
+
+    # Save PNG slices
+    slice_out_dir = os.path.join(output_png, volname)
+    os.makedirs(slice_out_dir, exist_ok=True)
+    for i, slice_img in enumerate(volume_np_norm):
+        plt.imsave(os.path.join(slice_out_dir, f"slice_{i:03d}.png"), slice_img, cmap='gray', vmin=0, vmax=1)
+
+    # Save NIfTI
+    nii_path = os.path.join(output_nii, f"{volname}.nii.gz")
+    nib.save(nib.Nifti1Image(volume_np.astype(np.float32), affine=np.eye(4)), nii_path)
+
+    # Save axial/coronal/sagittal views
+    plot_out_dir = os.path.join(output_plots, volname)
+    os.makedirs(plot_out_dir, exist_ok=True)
+    num_slices = 16
+
+    def plot_views(volume, axis, title):
+        start_idx = (volume.shape[axis] - num_slices) // 2
+        fig, axs = plt.subplots(4, 4, figsize=(10, 10))
         for i in range(num_slices):
-            ax = axes[i // 4, i % 4]
-            ax.imshow(images[start_idx_axial + i, :, :], cmap="gray", vmin=0, vmax=1)
-            ax.set_title(f"Axial Slice {start_idx_axial + i}")
-            ax.axis("off")
+            idx = start_idx + i
+            ax = axs[i // 4, i % 4]
+            if axis == 0:
+                ax.imshow(volume[idx, :, :], cmap='gray', vmin=0, vmax=1)
+            elif axis == 1:
+                ax.imshow(volume[:, idx, :], cmap='gray', vmin=0, vmax=1)
+            else:
+                ax.imshow(volume[:, :, idx], cmap='gray', vmin=0, vmax=1)
+            ax.axis('off')
         plt.tight_layout()
-        plt.savefig(os.path.join(plot_folder, "axial_view.png"), dpi=300)
+        plt.savefig(os.path.join(plot_out_dir, f"{title.lower()}_view.png"), dpi=300)
         plt.close()
-        
-        # Coronal view
-        fig, axes = plt.subplots(4, 4, figsize=(10, 10))
-        for i in range(num_slices):
-            ax = axes[i // 4, i % 4]
-            ax.imshow(images[:, start_idx_coronal + i, :], cmap="gray", vmin=0, vmax=1)
-            ax.set_title(f"Coronal Slice {start_idx_coronal + i}")
-            ax.axis("off")
-        plt.tight_layout()
-        plt.savefig(os.path.join(plot_folder, "coronal_view.png"), dpi=300)
-        plt.close()
-        
-        # Sagittal view
-        fig, axes = plt.subplots(4, 4, figsize=(10, 10))
-        for i in range(num_slices):
-            ax = axes[i // 4, i % 4]
-            ax.imshow(images[:, :, start_idx_sagittal + i], cmap="gray", vmin=0, vmax=1)
-            ax.set_title(f"Sagittal Slice {start_idx_sagittal + i}")
-            ax.axis("off")
-        plt.tight_layout()
-        plt.savefig(os.path.join(plot_folder, "sagittal_view.png"), dpi=300)
-        plt.close()
-        
-        print(f"Saved PNG slices in {slice_folder}, NIfTI volume at {nii_file_path}, and visualization plots in {plot_folder}")
+
+    plot_views(volume_np_norm, axis=0, title="Axial")
+    plot_views(volume_np_norm, axis=1, title="Coronal")
+    plot_views(volume_np_norm, axis=2, title="Sagittal")
+
+    print(f"Saved volume {volname}: PNGs → {slice_out_dir}, NIfTI → {nii_path}, Views → {plot_out_dir}")

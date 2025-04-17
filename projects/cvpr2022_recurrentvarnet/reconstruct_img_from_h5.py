@@ -110,6 +110,8 @@ def process_all_kspaces(kspace_list, base_filename):
     start_idx_coronal = (images.shape[1] - num_slices) // 2
     start_idx_sagittal = (images.shape[2] - num_slices) // 2
 
+    print(base_filename)
+
     # Plot the central 16 slices in axial direction
     fig, axes = plt.subplots(rows, cols, figsize=(10, 10))
     for i in range(num_slices):

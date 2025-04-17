@@ -5,9 +5,13 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 
 # Set your input and output folders
-INPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_h5/"
-OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_png/"
-NII_OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_nii/"
+#INPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_h5/"
+#OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_png_PROVA/"
+#NII_OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_fastmri_test/pred_nii_PROVA/"
+
+INPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/pred_h5_2D"
+OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/pred_png_PROVA/"
+NII_OUTPUT_FOLDER = "/home/giovanni/Desktop/Projects/AI/Projects/direct/projects/cvpr2022_recurrentvarnet/output_bracco_test/pred_nii_PROVA/"
 
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(NII_OUTPUT_FOLDER, exist_ok=True)

@@ -368,7 +368,11 @@ class FastMRIDataset(H5SliceData):
         sample = super().__getitem__(idx)
 
         if self.pass_attrs:
-            sample["scaling_factor"] = sample["attrs"]["max"]
+            attrs = sample.get("attrs", {})
+            if "max" in attrs:
+                sample["scaling_factor"] = attrs["max"]
+            else:
+                sample["scaling_factor"] = 1.0
             del sample["attrs"]
 
         sample.update(_parse_fastmri_header(sample["ismrmrd_header"]))
